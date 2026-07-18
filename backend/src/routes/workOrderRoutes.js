@@ -5,14 +5,18 @@ const {
   updateWorkOrderStatus,
   getWorkOrders,
   getWorkOrderById,
+  getWorkOrderHistory,
 } = require('../controllers/workOrderController');
 const { addItem, deleteItem } = require('../controllers/itemController');
+const authMiddleware = require('../middlewares/authMiddleware');
+const requireRole = require('../middlewares/roleMiddleware');
 
-router.post('/', createWorkOrder);
-router.get('/', getWorkOrders);
-router.get('/:id', getWorkOrderById);
-router.patch('/:id/status', updateWorkOrderStatus);
-router.post('/:id/items', addItem);
-router.delete('/items/:itemId', deleteItem);
+router.post('/', authMiddleware, createWorkOrder);
+router.get('/', authMiddleware, getWorkOrders);
+router.get('/:id', authMiddleware, getWorkOrderById);
+router.get('/:id/history', authMiddleware, getWorkOrderHistory);
+router.patch('/:id/status', authMiddleware, updateWorkOrderStatus);
+router.post('/:id/items', authMiddleware, addItem);
+router.delete('/items/:itemId', authMiddleware, requireRole('ADMIN'), deleteItem);
 
 module.exports = router;

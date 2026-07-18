@@ -6,6 +6,7 @@ const clienteRoutes = require('./routes/clienteRoutes');
 const motoRoutes = require('./routes/motoRoutes');
 const workOrderRoutes = require('./routes/workOrderRoutes');
 const errorHandler = require('./middlewares/errorHandler');
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/clients', clienteRoutes);
 app.use('/api/bikes', motoRoutes);
 app.use('/api/work-orders', workOrderRoutes);
+app.use('/api/auth',authRoutes)
 
 app.use(errorHandler);
 

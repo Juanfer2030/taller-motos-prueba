@@ -56,6 +56,7 @@ DB_USER=root
 DB_PASSWORD=tu_password_de_mysql
 DB_DIALECT=mysql
 PORT=4000
+JWT_SECRET=c8sn239H3Mh1J0A*
 
 Crea la base de datos en MySQL:
 
@@ -114,25 +115,55 @@ RECIBIDA → DIAGNOSTICO → EN PROCESO → LISTA → ENTREGADA
 
 `CANCELADA` es alcanzable desde cualquier estado, excepto desde `ENTREGADA`. Cualquier transición fuera de estas reglas es rechazada por el backend con status 400.
 
+## Autenticación y roles
+
+El sistema usa autenticación basada en JWT. Todos los endpoints (excepto login) requieren un token válido enviado en el header:
+Authorization: Bearer <token>
+
+### Roles
+
+- **ADMIN**: acceso completo, incluyendo eliminar ítems y registrar nuevos usuarios.
+- **MECANICO**: puede ver, crear órdenes, agregar ítems y cambiar estados, pero no puede eliminar ítems ni registrar usuarios.
+
+### Endpoints de autenticación
+
+| Método | Ruta               | Descripción                          | Protegido           |
+|--------|--------------------|----------------------------------------|----------------------|
+| POST   | /api/auth/login     | Iniciar sesión, devuelve un JWT       | No                   |
+| POST   | /api/auth/register  | Registrar un nuevo usuario            | Sí (solo ADMIN)      |
+
+### Usuarios de prueba
+
+Para probar el sistema, puedes crear usuarios directamente en la base de datos, o usar el endpoint de registro con un usuario ADMIN ya existente. Ejemplo de body para login:
+
+```json
+{
+  "email": "admin@taller.com",
+  "password": "admin123"
+}
+```
 ## Endpoints principales
 
-| Método | Ruta                                     | Descripción                          |
-|--------|-------------------------------------------|---------------------------------------|
-| POST   | /api/clients                              | Crear cliente                         |
-| GET    | /api/clients?search=                      | Listar/buscar clientes                |
-| GET    | /api/clients/:id                          | Detalle de cliente                    |
-| POST   | /api/bikes                                | Crear moto                            |
-| GET    | /api/bikes?plate=                         | Listar/buscar motos por placa         |
-| GET    | /api/bikes/:id                            | Detalle de moto                       |
-| POST   | /api/work-orders                          | Crear orden de trabajo                |
-| GET    | /api/work-orders?status=&plate=&page=&pageSize= | Listar órdenes con filtros/paginación |
-| GET    | /api/work-orders/:id                      | Detalle de orden                      |
-| PATCH  | /api/work-orders/:id/status               | Cambiar estado de la orden            |
-| POST   | /api/work-orders/:id/items                | Agregar ítem a una orden              |
-| DELETE | /api/work-orders/items/:itemId            | Eliminar ítem de una orden            |
+| Método | Ruta                                     | Descripción                          | Protegido        |
+|--------|--------------------------------------------|----------------------------------------|--------------------|
+| POST   | /api/clients                              | Crear cliente                         | Sí                 |
+| GET    | /api/clients?search=                      | Listar/buscar clientes                | Sí                 |
+| GET    | /api/clients/:id                          | Detalle de cliente                    | Sí                 |
+| POST   | /api/bikes                                | Crear moto                            | Sí                 |
+| GET    | /api/bikes?plate=                         | Listar/buscar motos por placa         | Sí                 |
+| GET    | /api/bikes/:id                            | Detalle de moto                       | Sí                 |
+| POST   | /api/work-orders                          | Crear orden de trabajo                | Sí                 |
+| GET    | /api/work-orders?status=&plate=&page=&pageSize= | Listar órdenes con filtros/paginación | Sí         |
+| GET    | /api/work-orders/:id                      | Detalle de orden                      | Sí                 |
+| GET    | /api/work-orders/:id/history              | Historial de cambios de estado        | Sí                 |
+| PATCH  | /api/work-orders/:id/status               | Cambiar estado de la orden            | Sí                 |
+| POST   | /api/work-orders/:id/items                | Agregar ítem a una orden              | Sí                 |
+| DELETE | /api/work-orders/items/:itemId            | Eliminar ítem de una orden            | Sí (solo ADMIN)    |
+
 
 ## Notas de diseño
 
 - El campo `total` de cada orden se recalcula automáticamente (dentro de una transacción) cada vez que se agrega o elimina un ítem, evitando inconsistencias entre los ítems y el total mostrado.
 - Las validaciones de negocio (placa única, moto/cliente existente, transiciones de estado válidas) se aplican en el backend, independientemente de las validaciones del frontend.
 - Se usó `sequelize.sync({ alter: true })` durante el desarrollo; el entregable final usa migraciones versionadas (`migrations/`) como mecanismo formal de creación de esquema.
+- Cada cambio de estado de una orden queda registrado automáticamente en `work_order_status_history`, dentro de la misma transacción que actualiza el estado — permitiendo trazabilidad completa sin depender de que el usuario recuerde registrar el cambio.

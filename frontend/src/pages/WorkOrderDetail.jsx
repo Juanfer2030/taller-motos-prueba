@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { TRANSICIONES_VALIDAS } from '../utils/estados';
 
 function WorkOrderDetail() {
   const { id } = useParams();
+  const { user } = useAuth();
 
   const [orden, setOrden] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -21,6 +23,8 @@ function WorkOrderDetail() {
   const [agregandoItem, setAgregandoItem] = useState(false);
   const [errorItem, setErrorItem] = useState(null);
 
+  const [historial, setHistorial] = useState([]);
+
   async function cargarOrden() {
     try {
       setCargando(true);
@@ -33,8 +37,19 @@ function WorkOrderDetail() {
     }
   }
 
+  async function cargarHistorial() {
+    try {
+      const response = await api.get(`/work-orders/${id}/history`);
+      setHistorial(response.data);
+    } catch (err) {
+      // si falla el historial, no bloqueamos el resto de la pantalla
+      console.error('No se pudo cargar el historial');
+    }
+  }
+
   useEffect(() => {
     cargarOrden();
+    cargarHistorial();
   }, [id]);
 
   async function handleCambiarEstado(e) {
@@ -49,6 +64,7 @@ function WorkOrderDetail() {
 
       setNuevoEstado('');
       await cargarOrden();
+      await cargarHistorial();
     } catch (err) {
       const mensaje = err.response?.data?.message || 'No se pudo cambiar el estado';
       setErrorEstado(mensaje);
@@ -140,6 +156,36 @@ function WorkOrderDetail() {
         {errorEstado && <p className="text-red-600 mt-2">{errorEstado}</p>}
       </div>
 
+      <div className="border rounded p-4 mb-6">
+        <p className="font-semibold mb-2">Historial de estados</p>
+
+        {historial.length === 0 ? (
+          <p className="text-gray-500">Aún no hay cambios de estado registrados.</p>
+        ) : (
+          <ul className="space-y-2">
+            {historial.map((registro) => (
+              <li key={registro.id} className="text-sm border-l-2 border-blue-400 pl-3">
+                <span className="text-gray-500">
+                  {new Date(registro.createdAt).toLocaleString('es-CO')}
+                </span>
+                {' — '}
+                {registro.previousStatus ? (
+                  <span>
+                    <span className="font-medium">{registro.previousStatus}</span>
+                    {' → '}
+                    <span className="font-medium">{registro.newStatus}</span>
+                  </span>
+                ) : (
+                  <span>
+                    Orden creada en estado <span className="font-medium">{registro.newStatus}</span>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       <div className="border rounded p-4">
         <p className="font-semibold mb-2">Ítems de la orden</p>
 
@@ -168,12 +214,14 @@ function WorkOrderDetail() {
                     ${(item.count * parseFloat(item.unitValue)).toLocaleString('es-CO')}
                   </td>
                   <td className="py-2">
-                    <button
-                      onClick={() => handleEliminarItem(item.id)}
-                      className="text-red-600 hover:underline text-sm"
-                    >
-                      Eliminar
-                    </button>
+                    {user.role === 'ADMIN' && (
+                      <button
+                        onClick={() => handleEliminarItem(item.id)}
+                        className="text-red-600 hover:underline text-sm"
+                      >
+                        Eliminar
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

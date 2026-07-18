@@ -1,5 +1,6 @@
-const { WorkOrder, Moto, Cliente, Item } = require('../models');
+const { WorkOrder, Moto, Cliente, Item, WorkOrderStatusHistory } = require('../models');
 const { esTransicionValida } = require('../utils/workOrderStateMachine');
+const sequelize = require('../config/database');
 
 // POST /api/work-orders
 async function createWorkOrder(req, res, next) {
@@ -26,28 +27,44 @@ async function createWorkOrder(req, res, next) {
 
 // PATCH /api/work-orders/:id/status
 async function updateWorkOrderStatus(req, res, next) {
+  const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
     const { status: nuevoEstado } = req.body;
 
-    const workOrder = await WorkOrder.findByPk(id);
+    const workOrder = await WorkOrder.findByPk(id, { transaction });
     if (!workOrder) {
+      await transaction.rollback();
       return res.status(404).json({ message: 'Orden no encontrada' });
     }
 
     const estadoActual = workOrder.status;
 
     if (!esTransicionValida(estadoActual, nuevoEstado)) {
+      await transaction.rollback();
       return res.status(400).json({
         message: `No se puede cambiar de "${estadoActual}" a "${nuevoEstado}". Transición inválida.`,
       });
     }
 
     workOrder.status = nuevoEstado;
-    await workOrder.save();
+    await workOrder.save({ transaction });
+
+    await WorkOrderStatusHistory.create(
+      {
+        workOrderId: id,
+        previousStatus: estadoActual,
+        newStatus: nuevoEstado,
+        changedBy: req.user?.id || null, // preparado para cuando exista JWT
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
 
     res.json(workOrder);
   } catch (error) {
+    await transaction.rollback();
     next(error);
   }
 }
@@ -126,4 +143,25 @@ async function getWorkOrderById(req, res, next) {
   }
 }
 
-module.exports = { createWorkOrder, updateWorkOrderStatus, getWorkOrders, getWorkOrderById };
+// GET /api/work-orders/:id/history
+async function getWorkOrderHistory(req, res, next) {
+  try {
+    const { id } = req.params;
+
+    const workOrder = await WorkOrder.findByPk(id);
+    if (!workOrder) {
+      return res.status(404).json({ message: 'Orden no encontrada' });
+    }
+
+    const history = await WorkOrderStatusHistory.findAll({
+      where: { workOrderId: id },
+      order: [['createdAt', 'ASC']],
+    });
+
+    res.json(history);
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { createWorkOrder, updateWorkOrderStatus, getWorkOrders, getWorkOrderById,getWorkOrderHistory, };

@@ -5,9 +5,10 @@ const {
   getMotos,
   getMotoById,
 } = require('../controllers/motoController');
+const authMiddleware = require('../middlewares/authMiddleware');
 
-router.post('/', createMoto);
-router.get('/', getMotos);
-router.get('/:id', getMotoById);
+router.post('/', authMiddleware, createMoto);
+router.get('/', authMiddleware, getMotos);
+router.get('/:id', authMiddleware, getMotoById);
 
 module.exports = router;

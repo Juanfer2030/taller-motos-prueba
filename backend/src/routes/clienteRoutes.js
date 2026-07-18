@@ -5,9 +5,10 @@ const {
   getClientes,
   getClienteById,
 } = require('../controllers/clienteController');
+const authMiddleware = require('../middlewares/authMiddleware');
 
-router.post('/', createCliente);
-router.get('/', getClientes);
-router.get('/:id', getClienteById);
+router.post('/', authMiddleware, createCliente);
+router.get('/', authMiddleware, getClientes);
+router.get('/:id', authMiddleware, getClienteById);
 
 module.exports = router;
